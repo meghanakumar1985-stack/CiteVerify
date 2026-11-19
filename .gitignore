@@ -25,3 +25,8 @@ vendor:
 vendor:/
 .vercel
 .env*
+
+# Internal team notes & handbooks
+*HANDBOOK*
+*QNA*
+*.notes

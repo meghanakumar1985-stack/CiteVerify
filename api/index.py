@@ -10,10 +10,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, Request
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel
 
 from pipeline import run_pipeline
@@ -33,6 +34,7 @@ app.add_middleware(
 )
 
 HTML_PATH = BASE_DIR / "index.html"
+HTML_404_PATH = BASE_DIR / "404.html"
 STATIC_DIR = BASE_DIR / "static"
 ASSETS_DIR = BASE_DIR / "assets"
 
@@ -190,6 +192,34 @@ async def get_robots_txt():
     if rob.exists():
         return FileResponse(rob, media_type="text/plain")
     return HTMLResponse(status_code=404)
+
+
+@app.get("/404", response_class=HTMLResponse)
+async def serve_404_view():
+    """Serves the custom minimalist 404 page directly."""
+    if HTML_404_PATH.exists():
+        with open(HTML_404_PATH, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), status_code=404)
+    return HTMLResponse("<h1>404 Not Found</h1>", status_code=404)
+
+
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc: Any):
+    """Custom 404 error handler returning the Swiss minimalist error page."""
+    if HTML_404_PATH.exists():
+        with open(HTML_404_PATH, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), status_code=404)
+    return HTMLResponse("<h1>404 Not Found</h1>", status_code=404)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_starlette_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handles HTTP exceptions and routes 404 status codes to custom error page."""
+    if exc.status_code == 404:
+        if HTML_404_PATH.exists():
+            with open(HTML_404_PATH, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read(), status_code=404)
+    return Response(content=f"Error {exc.status_code}: {exc.detail}", status_code=exc.status_code)
 
 
 @app.get("/", response_class=HTMLResponse)
