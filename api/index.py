@@ -11,7 +11,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -136,9 +136,41 @@ async def verify_pdf(
     }
 
 
+@app.get("/static/css/styles.css")
+async def serve_static_css():
+    """Explicit fallback server for CSS asset."""
+    candidates = [
+        STATIC_DIR / "css" / "styles.css",
+        BASE_DIR / "public" / "static" / "css" / "styles.css",
+        Path("static/css/styles.css"),
+    ]
+    for p in candidates:
+        if p.exists():
+            with open(p, "r", encoding="utf-8") as f:
+                return Response(content=f.read(), media_type="text/css")
+    return Response(content="/* CSS not found */", media_type="text/css", status_code=404)
+
+
+@app.get("/static/js/app.js")
+async def serve_static_js():
+    """Explicit fallback server for JS asset."""
+    candidates = [
+        STATIC_DIR / "js" / "app.js",
+        BASE_DIR / "public" / "static" / "js" / "app.js",
+        Path("static/js/app.js"),
+    ]
+    for p in candidates:
+        if p.exists():
+            with open(p, "r", encoding="utf-8") as f:
+                return Response(content=f.read(), media_type="application/javascript")
+    return Response(content="// JS not found", media_type="application/javascript", status_code=404)
+
+
 @app.get("/favicon.png")
 async def get_favicon_png():
     fav = STATIC_DIR / "favicon.png"
+    if not fav.exists():
+        fav = BASE_DIR / "public" / "favicon.png"
     if fav.exists():
         return FileResponse(fav, media_type="image/png")
     return HTMLResponse(status_code=404)

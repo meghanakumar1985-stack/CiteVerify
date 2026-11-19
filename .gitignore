@@ -23,3 +23,5 @@ vendor
 vendor/
 vendor:
 vendor:/
+.vercel
+.env*

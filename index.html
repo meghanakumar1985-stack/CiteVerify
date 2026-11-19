@@ -79,7 +79,6 @@
     <section class="hero">
       <div class="wrap">
         <span class="pill">
-          <span class="dot" aria-hidden="true"></span>
           Research Integrity · Citation Audit Workspace
         </span>
         <h1>Every claim, checked against its source.</h1>
@@ -159,6 +158,11 @@
 
             <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
               <i id="progBar"></i>
+            </div>
+
+            <div class="loading-box" id="loadingBox">
+              <div class="spinner" aria-hidden="true"></div>
+              <span class="loading-msg" id="loadingMsg">Analyzing research citations...</span>
             </div>
 
             <p class="err" id="err" role="alert"></p>

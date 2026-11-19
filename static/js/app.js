@@ -133,15 +133,21 @@
     const status = $("status");
     const errEl = $("err");
 
+    const loadingBox = $("loadingBox");
+    const loadingMsg = $("loadingMsg");
+
     if (runBtn) runBtn.disabled = true;
     if (demoBtn) demoBtn.disabled = true;
     errEl.textContent = "";
 
     progress.classList.add("show");
+    loadingBox?.classList.add("show");
     progBar.style.width = "15%";
-    status.textContent = isDemo
+    const initialMsg = isDemo
       ? "Loading benchmark demonstration paper..."
       : "Extracting citations and document text in-memory...";
+    status.textContent = initialMsg;
+    if (loadingMsg) loadingMsg.textContent = initialMsg;
 
     // Progress animation steps
     let progressVal = 15;
@@ -149,11 +155,15 @@
       if (progressVal < 45) {
         progressVal += 10;
         progBar.style.width = progressVal + "%";
-        status.textContent = "Querying scholarly databases (Semantic Scholar, CrossRef)...";
+        const m = "Querying scholarly databases (Semantic Scholar, CrossRef)...";
+        status.textContent = m;
+        if (loadingMsg) loadingMsg.textContent = m;
       } else if (progressVal < 85) {
         progressVal += 8;
         progBar.style.width = progressVal + "%";
-        status.textContent = "Analyzing entailment against retrieved sources...";
+        const m = "Analyzing entailment against retrieved sources...";
+        status.textContent = m;
+        if (loadingMsg) loadingMsg.textContent = m;
       }
     }, 400);
 
@@ -219,6 +229,7 @@
       if (demoBtn) {
         demoBtn.disabled = false;
       }
+      loadingBox?.classList.remove("show");
       setTimeout(() => {
         progress.classList.remove("show");
         progBar.style.width = "0%";

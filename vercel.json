@@ -4,20 +4,36 @@
     {
       "src": "api/index.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "static/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
+      "src": "/static/css/styles.css",
+      "dest": "api/index.py"
+    },
+    {
+      "src": "/static/js/app.js",
+      "dest": "api/index.py"
+    },
+    {
       "src": "/static/(.*)",
-      "dest": "/static/$1"
+      "dest": "api/index.py"
     },
     {
       "src": "/favicon.png",
-      "dest": "/static/favicon.png"
+      "dest": "api/index.py"
     },
     {
       "src": "/robots.txt",
-      "dest": "/static/robots.txt"
+      "dest": "api/index.py"
     },
     {
       "src": "/(.*)",
