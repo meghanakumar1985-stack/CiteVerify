@@ -1,0 +1,25 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Environment variables & secrets
+.env
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+
+# Streamlit
+.streamlit/
+
+# macOS system files
+.DS_Store
+
+# Vendor directory (submodules / upstream repos)
+vendor
+vendor/
+vendor:
+vendor:/

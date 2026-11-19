@@ -1,0 +1,6 @@
+streamlit
+requests
+lxml
+scikit-learn
+pandas
+python-dotenv
