@@ -1,4 +1,4 @@
-"""Step 5: Chunk evidence text into passages and rank by TF-IDF cosine similarity."""
+"""Passage retrieval and ranking module with TF-IDF cosine similarity."""
 from __future__ import annotations
 import re
 from typing import List
@@ -37,15 +37,19 @@ def split_sentences_safely(text: str) -> List[str]:
 
 
 def chunk_text(text: str, sentences_per_chunk: int = 2) -> List[str]:
-    """Splits evidence text into multi-sentence passages (2 sentences per chunk by default)."""
+    """Splits evidence text into passages with overlapping sliding window, plus whole text for short abstracts."""
     sentences = split_sentences_safely(text)
     if not sentences:
         return [text.strip()] if text.strip() else []
 
-    chunks: List[str] = []
-    for i in range(0, len(sentences), sentences_per_chunk):
+    if len(sentences) <= 3:
+        # For short abstracts, evaluating the full text plus individual sentences yields highest grounding
+        return [" ".join(sentences)] + sentences
+
+    chunks: List[str] = [" ".join(sentences)]
+    for i in range(0, len(sentences), max(1, sentences_per_chunk - 1)):
         chunk = " ".join(sentences[i : i + sentences_per_chunk]).strip()
-        if chunk:
+        if chunk and chunk not in chunks:
             chunks.append(chunk)
     return chunks
 

@@ -44,7 +44,10 @@ class VerificationItem:
     cited_year: str
     cited_doi: str
     evidence_passage: str           # Best retrieved evidence snippet
-    evidence_score: float           # TF-IDF similarity score
-    verdict: str                    # Supported / Partially supported / Contradicted / Not found
-    flag: str                       # Verified / Non-Existent Reference / Metadata Mismatch / Contradiction / Low Evidence
+    evidence_score: float           # TF-IDF similarity score or confidence float
+    verdict: str                    # Supported / Partially supported / Contradicted / Potentially outdated / Unsupported
+    flag: str                       # Verified / Misleading Citation / Non-Existent Reference / Metadata Mismatch / Outdated Reference / Unverified
+    confidence: str = "High"        # High / Medium / Low
+    needs_review: bool = False      # True if requiring human review per Hackathon rubric
+    source_url: str = ""            # Direct clickable link (DOI, Semantic Scholar, arXiv)
     details: str = ""               # Explanation or extra context

@@ -1,4 +1,4 @@
-"""Step 4: Retrieve cited paper abstract/metadata from Semantic Scholar, CrossRef, and arXiv."""
+"""Scholarly publication retrieval module connecting to Semantic Scholar, CrossRef, and arXiv APIs."""
 from __future__ import annotations
 import os
 import json
@@ -23,25 +23,57 @@ TAG_STRIP_RE = re.compile(r"<[^>]+>")
 
 # Fallback stub abstracts for known sample papers or offline testing
 STUB_ABSTRACTS = {
-    "Attention Is All You Need": (
-        "The dominant sequence transduction models are based on complex recurrent or "
-        "convolutional neural networks that include an encoder and a decoder. The best performing "
-        "models also connect the encoder and decoder through an attention mechanism. We propose a "
-        "new simple network architecture, the Transformer, based solely on attention mechanisms, "
-        "dispensing with recurrence and convolutions entirely. Experiments on two machine translation "
-        "tasks show these models to be superior in quality while being more parallelizable and "
-        "requiring significantly less time to train. Transformer models significantly improve accuracy "
-        "and representation power across scientific and natural language tasks."
-    ),
-    "Semi-Supervised Classification with Graph Convolutional Networks": (
-        "We present a scalable approach for semi-supervised learning on graph-structured data that is "
-        "based on an efficient variant of convolutional neural networks which operate directly on "
-        "graphs. We motivate our convolutional architecture via a localized first-order approximation "
-        "of spectral graph convolutions. Our model scales linearly in the number of graph edges and "
-        "learns hidden layer representations that encode both local graph structure and features of "
-        "nodes. In contrast to assumptions of catastrophic failure, graph neural networks achieve "
-        "competitive performance even on low-resource citation graphs and sparse benchmarks."
-    ),
+    "Attention Is All You Need": {
+        "abstract": (
+            "The dominant sequence transduction models are based on complex recurrent or "
+            "convolutional neural networks that include an encoder and a decoder. The best performing "
+            "models also connect the encoder and decoder through an attention mechanism. We propose a "
+            "new simple network architecture, the Transformer, based solely on attention mechanisms, "
+            "dispensing with recurrence and convolutions entirely. Experiments on two machine translation "
+            "tasks show these models to be superior in quality while being more parallelizable and "
+            "requiring significantly less time to train. Transformer models significantly improve accuracy "
+            "and representation power across scientific and natural language tasks."
+        ),
+        "url": "https://arxiv.org/abs/1706.03762",
+        "year": "2017",
+        "authors": ["Ashish Vaswani", "Noam Shazeer", "Niki Parmar"],
+    },
+    "Semi-Supervised Classification with Graph Convolutional Networks": {
+        "abstract": (
+            "We present a scalable approach for semi-supervised learning on graph-structured data that is "
+            "based on an efficient variant of convolutional neural networks which operate directly on "
+            "graphs. We motivate our convolutional architecture via a localized first-order approximation "
+            "of spectral graph convolutions. Our model scales linearly in the number of graph edges and "
+            "learns hidden layer representations that encode both local graph structure and features of "
+            "nodes. In contrast to assumptions of catastrophic failure, graph neural networks achieve "
+            "competitive performance even on low-resource citation graphs and sparse benchmarks."
+        ),
+        "url": "https://arxiv.org/abs/1609.02907",
+        "year": "2016",
+        "authors": ["Thomas N. Kipf", "Max Welling"],
+    },
+    "Evaluating Mobile Learning Apps in Secondary Education": {
+        "abstract": (
+            "We evaluate the deployment of mobile learning applications across a pilot group of secondary education "
+            "students. Our observations indicate steady qualitative engagement and general test score improvements "
+            "among participants. However, given the limited sample size (N=34), the study did not substantiate claims "
+            "of a 30% quantitative increase, and larger trials are needed before drawing definitive statistical conclusions."
+        ),
+        "url": "https://doi.org/10.1016/j.compedu.2021.104231",
+        "year": "2021",
+        "authors": ["H. Chen", "L. Zhang", "M. Davis"],
+    },
+    "Object Recognition from Local Scale-Invariant Features": {
+        "abstract": (
+            "This paper presents a method for extracting distinctive invariant features from images, known as "
+            "Scale Invariant Feature Transform (SIFT). SIFT features are invariant to image scaling and rotation, "
+            "and partially invariant to change in illumination and 3D camera viewpoint. This classical approach "
+            "formed the basis of feature-based recognition prior to deep learning architectures."
+        ),
+        "url": "https://doi.org/10.1109/ICCV.1999.790410",
+        "year": "1999",
+        "authors": ["David G. Lowe"],
+    },
 }
 
 _memory_cache: Dict[str, Dict[str, Any]] = {}
@@ -236,7 +268,7 @@ def retrieve_cited_paper(entry: BiblioEntry, use_stub: bool = False) -> Dict[str
     Checks disk/memory cache first, then tries Semantic Scholar, CrossRef, and arXiv.
     """
     if use_stub:
-        for known_title, stub_abs in STUB_ABSTRACTS.items():
+        for known_title, stub_info in STUB_ABSTRACTS.items():
             if (
                 known_title.lower() in entry.title.lower()
                 or entry.title.lower() in known_title.lower()
@@ -244,18 +276,21 @@ def retrieve_cited_paper(entry: BiblioEntry, use_stub: bool = False) -> Dict[str
                 return {
                     "exists": True,
                     "title": known_title,
-                    "abstract": stub_abs,
-                    "authors": entry.authors,
-                    "year": entry.year,
+                    "abstract": stub_info["abstract"],
+                    "authors": stub_info.get("authors", entry.authors),
+                    "year": stub_info.get("year", entry.year),
+                    "url": stub_info.get("url", f"https://doi.org/{entry.doi}" if entry.doi else f"https://scholar.google.com/scholar?q={re.sub(r'\\s+', '+', known_title)}"),
                     "source": "stub",
                 }
+        # If not found in known stub abstracts, mark as non-existent to demonstrate phantom citation detection
         return {
-            "exists": True,
-            "title": entry.title or "Sample Cited Paper",
-            "abstract": f"Abstract describing {entry.title}. This paper presents experimental evaluations on the topic.",
+            "exists": False,
+            "title": entry.title or "Unknown Paper",
+            "abstract": "",
             "authors": entry.authors,
             "year": entry.year,
-            "source": "stub",
+            "url": f"https://doi.org/{entry.doi}" if entry.doi else "",
+            "source": "stub-nonexistent",
         }
 
     _load_cache()
@@ -288,7 +323,7 @@ def retrieve_cited_paper(entry: BiblioEntry, use_stub: bool = False) -> Dict[str
 
     # Fallback to stub if it's one of the known benchmark papers
     if not result:
-        for known_title, stub_abs in STUB_ABSTRACTS.items():
+        for known_title, stub_info in STUB_ABSTRACTS.items():
             if (
                 entry.title
                 and (known_title.lower() in entry.title.lower() or entry.title.lower() in known_title.lower())
@@ -296,9 +331,10 @@ def retrieve_cited_paper(entry: BiblioEntry, use_stub: bool = False) -> Dict[str
                 result = {
                     "exists": True,
                     "title": known_title,
-                    "abstract": stub_abs,
-                    "authors": entry.authors,
-                    "year": entry.year,
+                    "abstract": stub_info["abstract"],
+                    "authors": stub_info.get("authors", entry.authors),
+                    "year": stub_info.get("year", entry.year),
+                    "url": stub_info.get("url", f"https://doi.org/{entry.doi}" if entry.doi else ""),
                     "source": "offline-sample",
                 }
                 break
@@ -310,8 +346,16 @@ def retrieve_cited_paper(entry: BiblioEntry, use_stub: bool = False) -> Dict[str
             "abstract": "",
             "authors": [],
             "year": None,
+            "url": f"https://doi.org/{entry.doi}" if entry.doi else (f"https://scholar.google.com/scholar?q={re.sub(r'\\s+', '+', entry.title)}" if entry.title else ""),
             "source": "none",
         }
+    elif not result.get("url"):
+        if entry.doi:
+            result["url"] = f"https://doi.org/{entry.doi}"
+        elif entry.title:
+            result["url"] = f"https://scholar.google.com/scholar?q={re.sub(r'\\s+', '+', entry.title)}"
+        else:
+            result["url"] = ""
 
     _memory_cache[key] = result
     _save_cache()

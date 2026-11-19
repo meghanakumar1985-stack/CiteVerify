@@ -1,4 +1,4 @@
-"""Step 7: Flag misleading or non-existent references (adapted from RefChecker concepts)."""
+"""Reference integrity auditor: flags phantom citations, metadata drift, and misleading sources."""
 from __future__ import annotations
 import re
 from typing import Dict, Any, List, Tuple
@@ -83,35 +83,54 @@ def evaluate_reference_flag(
     entry: BiblioEntry,
     retrieved_meta: Dict[str, Any],
     verdict: str,
-) -> Tuple[str, str]:
+) -> Tuple[str, str, bool]:
     """
-    Assigns an overall verification flag to the citation:
+    Assigns an overall verification flag and human review indicator to the citation:
     - 'Verified'
     - 'Misleading Citation' (Contradicted evidence)
     - 'Non-Existent Reference' (Not found in any database)
     - 'Metadata Mismatch' (Author, Year, or Title conflict)
+    - 'Outdated Reference' (Paper is too old for modern claim)
     - 'Unverified / Weak Evidence' (Evidence abstract lacks support)
+    Returns: (flag, reason, needs_review)
     """
     if not retrieved_meta.get("exists", False):
         return (
             "Non-Existent Reference",
-            "Cited paper was not found in Semantic Scholar, CrossRef, or arXiv.",
+            "Cited paper was not found in Semantic Scholar, CrossRef, or arXiv (phantom citation warning).",
+            True,
         )
 
     is_meta_ok, flag_type, meta_reason = check_metadata_consistency(entry, retrieved_meta)
     if not is_meta_ok:
-        return flag_type, meta_reason
+        return flag_type, meta_reason, True
 
     if verdict == "Contradicted":
         return (
             "Misleading Citation",
             "Cited evidence directly refutes or contradicts the claim made in the text.",
+            True,
         )
 
-    if verdict == "Not found":
+    if verdict == "Potentially outdated":
+        return (
+            "Outdated Reference",
+            f"The cited paper ({entry.year or 'historical'}) may have been superseded by newer research.",
+            True,
+        )
+
+    if verdict in ("Not found", "Unsupported"):
         return (
             "Unverified / Weak Evidence",
             "Cited paper was found in databases, but its text does not substantiate this claim.",
+            True,
         )
 
-    return "Verified", "Paper exists, metadata matches, and evidence substantiates the claim."
+    if verdict == "Partially supported":
+        return (
+            "Verified (Caveats)",
+            "Paper exists and relates to the claim, but specific numbers or scope require manual reviewer verification.",
+            True,
+        )
+
+    return "Verified", "Paper exists, metadata matches, and evidence substantiates the claim.", False

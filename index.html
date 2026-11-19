@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CiteVerify — Citation Review for Research Teams</title>
+  
+  <!-- SEO & Social Metadata -->
+  <meta name="description" content="Automated scientific claim extraction and citation verification for peer review and research integrity. Built with PyMuPDF, CrossRef, Semantic Scholar, and dual Gemini/Groq NLI intelligence.">
+  <meta name="keywords" content="citation verification, scientific claims, research integrity, peer review, nli, fact checking, academic research, innovedge 2026">
+  <meta name="author" content="Meghana Kumar">
+  <meta name="robots" content="index, follow">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CiteVerify — Citation Review for Research Teams">
+  <meta property="og:description" content="Every claim, checked against its source. Automated citation auditing for researchers and peer reviewers.">
+  <meta property="og:image" content="/static/assets/banner.jpg">
+  <meta property="og:site_name" content="CiteVerify">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="CiteVerify — Citation Review for Research Teams">
+  <meta name="twitter:description" content="Every claim, checked against its source. Automated citation auditing for researchers and peer reviewers.">
+  <meta name="twitter:image" content="/static/assets/banner.jpg">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="apple-touch-icon" href="/static/favicon.png">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+
+  <!-- Client Application Script -->
+  <script defer src="/static/js/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#workspace">Skip to workspace</a>
+
+  <!-- Header -->
+  <header>
+    <div class="wrap">
+      <div class="nav">
+        <a class="brand" href="/" aria-label="CiteVerify Home">
+          <img src="/static/favicon.png" alt="CiteVerify Mark" width="32" height="32">
+          <span>CiteVerify</span>
+          <span class="brand-badge">Research Integrity</span>
+        </a>
+
+        <nav class="links" aria-label="Main Navigation">
+          <a href="#workspace">Workspace</a>
+          <a href="#results">Results</a>
+          <a href="#how">How it works</a>
+        </nav>
+
+        <div class="nav-cta">
+          <button class="btn ghost demo-trigger" type="button">Run Demo</button>
+          <a class="btn" href="#workspace">Upload Paper</a>
+          <button class="menu-btn" id="menuBtn" aria-label="Toggle navigation menu" aria-expanded="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <nav class="mobile-menu" id="mobileMenu" aria-label="Mobile Navigation">
+        <a href="#workspace">Workspace</a>
+        <a href="#results">Results</a>
+        <a href="#how">How it works</a>
+        <a href="#workspace" class="demo-trigger">Run Demo</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="wrap">
+        <span class="pill">
+          <span class="dot" aria-hidden="true"></span>
+          Research Integrity · Citation Audit Workspace
+        </span>
+        <h1>Every claim, checked against its source.</h1>
+        <p class="lead">
+          Upload a paper and see which citations support, contradict, or need a closer look — side by side, in seconds.
+        </p>
+
+        <div class="hero-cta">
+          <a class="btn" href="#workspace">Upload a paper</a>
+          <button class="btn ghost demo-trigger" type="button">Run Demo</button>
+        </div>
+
+        <div class="stats">
+          <div>
+            <b>&lt; 0.2s</b>
+            <span>Document extraction</span>
+          </div>
+          <div>
+            <b>5 Verdicts</b>
+            <span>Evidence-grounded taxonomy</span>
+          </div>
+          <div>
+            <b>In-Memory</b>
+            <span>Zero file retention</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workspace Section -->
+    <section class="block" id="workspace">
+      <div class="wrap">
+        <div class="sec-head">
+          <div>
+            <p class="kicker">Workspace</p>
+            <h2>Review a paper</h2>
+            <p class="sub">Add an academic PDF, or test instantly with benchmark demo data.</p>
+          </div>
+        </div>
+
+        <div class="app">
+          <!-- Step 1: Document Upload Card -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <p class="kicker">Step 1</p>
+                <h3>Upload document</h3>
+              </div>
+              <span class="tag">PDF · 25 MB max</span>
+            </div>
+
+            <label class="drop" id="drop" for="file" tabindex="0" role="button" aria-label="Upload PDF file">
+              <span class="ico" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+                </svg>
+              </span>
+              <strong>Drop your research PDF here</strong>
+              <small>or click anywhere to browse local files</small>
+            </label>
+
+            <input type="file" id="file" accept="application/pdf,.pdf" hidden>
+
+            <div class="file-row" id="fileRow">
+              <span class="ico" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                  <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" />
+                  <path d="M14 3v5h5" />
+                </svg>
+              </span>
+              <div class="meta">
+                <div class="name" id="fName"></div>
+                <div class="size" id="fSize"></div>
+              </div>
+              <button class="x" id="removeBtn" aria-label="Remove selected document" title="Remove document">✕</button>
+            </div>
+
+            <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+              <i id="progBar"></i>
+            </div>
+
+            <p class="err" id="err" role="alert"></p>
+
+            <div class="actions">
+              <span class="note" id="status">No document selected</span>
+              <div class="action-buttons">
+                <button class="btn ghost sm" id="demoBtn" type="button" title="Load INNOVEDGE benchmark test suite">
+                  Run Benchmark Demo
+                </button>
+                <button class="btn sm" id="runBtn" type="button" disabled>
+                  Run review
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Findings Summary Card -->
+          <div class="card">
+            <p class="kicker">Step 2</p>
+            <h3>Summary</h3>
+            <div class="metrics">
+              <div class="metric">
+                <b id="mTotal">—</b>
+                <span>Claims reviewed</span>
+              </div>
+              <div class="metric">
+                <b id="mSup">—</b>
+                <span>Supported</span>
+              </div>
+              <div class="metric">
+                <b id="mCon">—</b>
+                <span>Contradicted</span>
+              </div>
+              <div class="metric">
+                <b id="mRev">—</b>
+                <span>Needs review</span>
+              </div>
+            </div>
+
+            <div class="bar" aria-hidden="true">
+              <i id="bS" style="width:0; background:#1b5e20;"></i>
+              <i id="bC" style="width:0; background:#b71c1c;"></i>
+              <i id="bR" style="width:0; background:#9ca3af;"></i>
+            </div>
+
+            <div class="legend">
+              <span style="--c:#1b5e20">Supported</span>
+              <span style="--c:#b71c1c">Contradicted</span>
+              <span style="--c:#9ca3af">Needs review</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="trust">
+          <span class="trust-ico" aria-hidden="true">ⓘ</span>
+          <p>
+            Automated checks support careful peer review — they do not replace academic judgment. Always read the source passage before drawing conclusions.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results Section -->
+    <section class="block" id="results">
+      <div class="wrap">
+        <div class="sec-head">
+          <div>
+            <p class="kicker">Results</p>
+            <h2>Evidence overview</h2>
+            <p class="sub">Audited scientific claims paired with retrieved literature evidence.</p>
+          </div>
+          <button class="btn ghost sm" id="exportBtn" disabled>
+            Export CSV
+          </button>
+        </div>
+
+        <div class="card table-card">
+          <div class="toolbar">
+            <div class="seg" role="tablist" id="seg">
+              <button class="on" data-f="all">All</button>
+              <button data-f="Supported">Supported</button>
+              <button data-f="Contradicted">Contradicted</button>
+              <button data-f="Needs review">Needs review</button>
+            </div>
+            <input class="search" id="q" type="search" placeholder="Search claims, sources, or verdicts..." aria-label="Search claims">
+          </div>
+
+          <div class="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>Claim</th>
+                  <th>Cited source</th>
+                  <th>Verdict</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="rows">
+                <tr>
+                  <td colspan="4" class="empty">
+                    Upload a paper or click "Run Benchmark Demo" to view results.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="block" id="how">
+      <div class="wrap">
+        <div class="sec-head">
+          <div>
+            <p class="kicker">System Architecture</p>
+            <h2>Three steps. Verified truth.</h2>
+          </div>
+        </div>
+
+        <div class="features">
+          <div class="card">
+            <span class="num">01 / Parsing</span>
+            <h3>Native Extraction</h3>
+            <p>PyMuPDF parses research text in under 0.2s with zero external Docker or GROBID overhead.</p>
+          </div>
+          <div class="card">
+            <span class="num">02 / Grounding</span>
+            <h3>Scholarly Retrieval</h3>
+            <p>Claims and citations are matched against Semantic Scholar, CrossRef, and arXiv databases.</p>
+          </div>
+          <div class="card">
+            <span class="num">03 / Inference</span>
+            <h3>Dual-AI NLI</h3>
+            <p>Gemini 2.0 Flash with automatic Groq LPU fallback computes 5-way verification rubrics.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Inspection Modal -->
+  <div class="modal-overlay" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="modalHeading">
+    <div class="modal-dialog">
+      <div class="modal-head">
+        <h4 id="modalHeading">Claim & Evidence Verification Audit</h4>
+        <button class="x" id="modalClose" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label>Document Claim</label>
+          <div class="modal-box" id="mClaimText"></div>
+        </div>
+        <div class="modal-field">
+          <label>Cited Source</label>
+          <div class="modal-box" id="mSourceText"></div>
+        </div>
+        <div style="display:flex; gap:16px; align-items:center;">
+          <div class="modal-field">
+            <label>Verdict</label>
+            <div><span id="mVerdictBadge" class="badge"></span></div>
+          </div>
+          <div class="modal-field">
+            <label>Confidence Metric</label>
+            <div id="mConfidenceText" style="font-family:var(--mono); font-size:13px; font-weight:600;"></div>
+          </div>
+        </div>
+        <div class="modal-field">
+          <label>Retrieved Source Abstract Passage</label>
+          <div class="modal-box" id="mEvidenceText"></div>
+        </div>
+        <div class="modal-field">
+          <label>NLI Entailment Reasoning</label>
+          <div class="modal-box mono" id="mReasoningText"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="wrap foot">
+      <span>CiteVerify · Research Integrity Engine</span>
+      <span>Automated scientific citation auditing</span>
+    </div>
+  </footer>
+</body>
+</html>

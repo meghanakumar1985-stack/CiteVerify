@@ -1,4 +1,4 @@
-"""Step 3: Extract scientific claims from citation sentences (adapted from ClaimScope)."""
+"""Claim extraction module: isolates factual assertion clauses from citation contexts."""
 from __future__ import annotations
 import re
 from typing import List
