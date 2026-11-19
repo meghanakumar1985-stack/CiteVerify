@@ -72,6 +72,26 @@ def run_pipeline(
 
     def _verify_one_target(pair):
         item, ref_id = pair
+        
+        # Dedicated handler for uploaded documents with unreferenced assertions
+        if ref_id.startswith("unref"):
+            return VerificationItem(
+                claim=item.claim_text,
+                citation="No citation provided in document",
+                cited_title="Unreferenced Assertion",
+                cited_authors="None",
+                cited_year="",
+                cited_doi="",
+                evidence_passage="No bibliographic citation was provided in the uploaded manuscript for this claim.",
+                evidence_score=0.0,
+                verdict="Unsupported",
+                flag="Missing Reference",
+                confidence="High",
+                needs_review=True,
+                source_url="",
+                details="Claim extracted from uploaded document, but the manuscript lacks an attached bibliographic citation.",
+            )
+
         bib_entry = bib_map.get(
             ref_id,
             BiblioEntry(ref_id=ref_id, title=f"Reference {ref_id}"),

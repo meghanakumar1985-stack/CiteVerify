@@ -68,7 +68,8 @@
     $("fSize").textContent = formatBytes(file.size);
     $("fileRow").classList.add("show");
     $("runBtn").disabled = false;
-    $("status").textContent = "Ready to review document";
+    $("runBtn").textContent = "Run Review (" + (file.name.length > 18 ? file.name.substring(0, 16) + "..." : file.name) + ")";
+    $("status").textContent = "Ready to review: " + file.name;
     toast("Paper loaded: " + file.name);
   }
 
@@ -79,6 +80,7 @@
     if (fileInput) fileInput.value = "";
     $("fileRow").classList.remove("show");
     $("runBtn").disabled = true;
+    $("runBtn").textContent = "Run Review";
     $("status").textContent = "No document selected";
   }
 
@@ -189,19 +191,43 @@
       progBar.style.width = "100%";
       status.textContent = "Verification synthesis complete";
 
+      // Parse confidence to numeric integer percentage
+      function parseConfidence(rawConf, sim) {
+        if (typeof rawConf === "number" && !isNaN(rawConf)) {
+          return rawConf <= 1.0 ? Math.round(rawConf * 100) : Math.round(rawConf);
+        }
+        const s = String(rawConf || "").trim().toLowerCase();
+        if (s === "high") return 92;
+        if (s === "medium") return 74;
+        if (s === "low") return 48;
+        const num = parseFloat(s);
+        if (!isNaN(num)) {
+          return num <= 1.0 ? Math.round(num * 100) : Math.round(num);
+        }
+        const numSim = parseFloat(sim);
+        if (!isNaN(numSim) && numSim > 0) {
+          return Math.min(95, Math.max(45, Math.round(numSim * 100)));
+        }
+        return 75;
+      }
+
       // Normalize records
       const rawRecords = payload.results || [];
-      verificationData = rawRecords.map((r, idx) => ({
-        id: idx + 1,
-        claim: r.Claim || r.claim || "Unspecified scientific claim",
-        source: r["Cited Source"] || r.source || "Unknown reference",
-        verdict: r.Verdict || r.verdict || "Review Required",
-        confidence: Math.round(Number(r.Confidence || r.confidence || 75)),
-        reviewStatus: r["Review Status"] || r.reviewStatus || "Standard",
-        reasoning: r["NLI Reasoning"] || r.reasoning || "Evaluation based on retrieved reference abstract.",
-        evidence: r["Source Passage"] || r.evidence || "Direct abstract text retrieved from academic repository.",
-        doi: r.DOI || r.doi || "",
-      }));
+      verificationData = rawRecords.map((r, idx) => {
+        const confVal = parseConfidence(r.Confidence || r.confidence, r.Similarity || r.similarity);
+        return {
+          id: idx + 1,
+          claim: r.Claim || r.claim || "Unspecified scientific claim",
+          source: r.Citation || r["Cited Source"] || r.source || "Document Assertion",
+          verdict: r.Verdict || r.verdict || "Review Required",
+          confidence: confVal,
+          confidenceLabel: (typeof r.Confidence === "string" && ["high", "medium", "low"].includes(r.Confidence.toLowerCase())) ? r.Confidence : "",
+          reviewStatus: r["Review Status"] || r.reviewStatus || "Standard",
+          reasoning: r.Details || r["NLI Reasoning"] || r.reasoning || "Evaluation based on retrieved reference abstract.",
+          evidence: r["Top Evidence Passage"] || r["Source Passage"] || r.evidence || "No external evidence passage found.",
+          doi: r["Source Link"] || r.DOI || r.doi || "",
+        };
+      });
 
       activeDiagnostics = payload.diagnostics || {};
 
@@ -223,11 +249,22 @@
       toast("Error running verification.");
     } finally {
       if (runBtn) {
-        runBtn.disabled = !selectedFile;
-        runBtn.textContent = "Run again";
+        if (selectedFile) {
+          runBtn.disabled = false;
+          runBtn.textContent = "Re-run Review (" + (selectedFile.name.length > 18 ? selectedFile.name.substring(0, 16) + "..." : selectedFile.name) + ")";
+        } else {
+          runBtn.disabled = true;
+          runBtn.textContent = "Run Review";
+        }
       }
       if (demoBtn) {
         demoBtn.disabled = false;
+        demoBtn.textContent = "Run Benchmark Demo";
+      }
+      if (isDemo) {
+        status.textContent = "Benchmark test suite audit complete";
+      } else if (selectedFile) {
+        status.textContent = "Audit complete for " + selectedFile.name;
       }
       loadingBox?.classList.remove("show");
       setTimeout(() => {
@@ -381,7 +418,7 @@
     $("mSourceText").textContent = item.source;
     $("mVerdictBadge").textContent = item.verdict;
     $("mVerdictBadge").className = `badge ${item.verdict.toLowerCase().includes("support") ? "b-sup" : item.verdict.toLowerCase().includes("contradict") ? "b-con" : "b-rev"}`;
-    $("mConfidenceText").textContent = item.confidence + "% Rubric Grounding";
+    $("mConfidenceText").textContent = item.confidence + "% " + (item.confidenceLabel ? "(" + item.confidenceLabel + ")" : "Rubric Grounding");
     $("mEvidenceText").textContent = item.evidence || "Extracted from verified paper abstract.";
     $("mReasoningText").textContent = item.reasoning || "NLI semantic entailment verification.";
 

@@ -200,6 +200,64 @@ def parse_citations_from_text(text: str, bib_map: Dict[str, BiblioEntry]) -> Lis
     return claims
 
 
+def extract_unreferenced_claims(text: str) -> Tuple[Dict[str, BiblioEntry], List[CitationClaim]]:
+    """
+    When an uploaded PDF contains text but lacks standard [1] numbered citations,
+    extracts the strongest empirical assertions from the document itself so the user's
+    actual file is audited rather than silently falling back to benchmark demo claims.
+    """
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    candidate_sentences: List[str] = []
+
+    # Priority assertion indicators
+    keywords = [
+        "demonstrate", "increase", "decrease", "improve", "show", "found", "find",
+        "result", "achieve", "outperform", "percent", "%", "accuracy", "model",
+        "study", "propose", "suggest", "evidence", "conclude", "significant", "require"
+    ]
+
+    for s in sentences:
+        s_clean = " ".join(s.split())
+        if 40 <= len(s_clean) <= 220:
+            lower_s = s_clean.lower()
+            if any(k in lower_s for k in keywords):
+                candidate_sentences.append(s_clean)
+                if len(candidate_sentences) >= 6:
+                    break
+
+    if not candidate_sentences:
+        for s in sentences:
+            s_clean = " ".join(s.split())
+            if 45 <= len(s_clean) <= 200:
+                candidate_sentences.append(s_clean)
+                if len(candidate_sentences) >= 5:
+                    break
+
+    if not candidate_sentences:
+        return BENCHMARK_BIBLIO, BENCHMARK_CLAIMS
+
+    bib_map: Dict[str, BiblioEntry] = {
+        "unref_0": BiblioEntry(
+            ref_id="unref_0",
+            title="Unreferenced Assertion (No citation in paper)",
+            authors=["Uncited"],
+            year=None,
+            raw_text="The manuscript makes this assertion without providing a supporting bibliographic citation.",
+        )
+    }
+
+    claims = [
+        CitationClaim(
+            sentence=sent,
+            target_ref_ids=["unref_0"],
+            claim_text=sent,
+        )
+        for sent in candidate_sentences
+    ]
+
+    return bib_map, claims
+
+
 def parse_pdf(pdf_bytes: bytes, use_stub: bool = False) -> Tuple[Dict[str, BiblioEntry], List[CitationClaim]]:
     """
     High-level entrypoint: parses PDF bytes or returns standard benchmark claims.
@@ -215,8 +273,8 @@ def parse_pdf(pdf_bytes: bytes, use_stub: bool = False) -> Tuple[Dict[str, Bibli
     bib_map = parse_bibliography_from_text(raw_text)
     claims = parse_citations_from_text(raw_text, bib_map)
 
-    # If extraction did not find citations, fallback to benchmark data
+    # If extraction did not find formal numbered citations, audit document text directly
     if not claims or not bib_map:
-        return BENCHMARK_BIBLIO, BENCHMARK_CLAIMS
+        return extract_unreferenced_claims(raw_text)
 
     return bib_map, claims
