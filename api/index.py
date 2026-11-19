@@ -71,7 +71,7 @@ async def health_check():
 
     return {
         "status": "operational",
-        "engine": "CiteVerify-v2",
+        "engine": "CiteVerify",
         "pdf_parser": "native_pymupdf (zero-docker)",
         "services": {
             "nli_intelligence": active_nli,

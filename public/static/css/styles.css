@@ -995,7 +995,16 @@ footer {
 
 @media (max-width: 640px) {
   .wrap {
-    width: min(100% - 28px, 1200px);
+    width: min(100% - 24px, 1200px);
+  }
+  .brand {
+    gap: 8px;
+    font-size: 15px;
+  }
+  .brand-badge {
+    font-size: 8.5px;
+    padding: 2px 5px;
+    letter-spacing: 0.02em;
   }
   .features {
     grid-template-columns: 1fr;
@@ -1003,8 +1012,16 @@ footer {
   .stats b {
     font-size: 19px;
   }
-  .nav-cta .btn {
+  /* In index.html with hamburger menu, keep primary upload button hidden, but preserve compact header buttons */
+  .nav-cta .btn:not(.sm) {
     display: none;
+  }
+  .nav-cta .btn.sm {
+    display: inline-flex;
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+    width: auto;
   }
   table thead {
     display: none;
@@ -1041,8 +1058,23 @@ footer {
     width: 100%;
     flex-direction: column;
   }
-  .btn {
+  .action-buttons .btn {
     width: 100%;
+  }
+  .hero-cta {
+    flex-direction: column;
+    width: 100%;
+    max-width: 320px;
+    margin: 28px auto 0;
+  }
+  .hero-cta .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .brand-badge {
+    display: none;
   }
 }
 
