@@ -65,7 +65,7 @@ async def health_check():
     elif gemini_ok:
         active_nli = "gemini_2.0_flash (1,000,000 TPM tier)"
     elif groq_ok:
-        active_nli = "groq_llama_3.1_8b_instant"
+        active_nli = "groq_lpu_fast_inference"
 
     return {
         "status": "operational",

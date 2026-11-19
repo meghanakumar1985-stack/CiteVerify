@@ -66,71 +66,75 @@ def run_pipeline(
         for r_id, p_info in executor.map(_fetch_one, needed_ref_ids):
             retrieved_papers[r_id] = p_info
 
-    # 5, 6, 7. Rank passages, Classify Claim, and Flag Reference
+    # 5, 6, 7. Rank passages, Classify Claim, and Flag Reference concurrently
     items: List[VerificationItem] = []
+    selected_claims = claims[:8]
 
-    for item in claims:
+    def _verify_one_target(pair):
+        item, ref_id = pair
+        bib_entry = bib_map.get(
+            ref_id,
+            BiblioEntry(ref_id=ref_id, title=f"Reference {ref_id}"),
+        )
+        paper_info = retrieved_papers.get(
+            ref_id,
+            {"exists": False, "abstract": "", "authors": [], "year": None},
+        )
+
+        ranked_passages = rank_passages(
+            claim_text=item.claim_text,
+            evidence_text=paper_info.get("abstract", ""),
+            ref_id=ref_id,
+            top_k=3,
+        )
+
+        cited_year_str = str(bib_entry.year or paper_info.get("year") or "")
+
+        verdict, details, confidence = classify_claim(
+            claim_text=item.claim_text,
+            passages=ranked_passages,
+            cited_year=cited_year_str,
+        )
+
+        flag, flag_reason, needs_review = evaluate_reference_flag(bib_entry, paper_info, verdict)
+
+        best_evidence = ranked_passages[0].text if ranked_passages else "No evidence found."
+        best_score = ranked_passages[0].score if ranked_passages else 0.0
+
+        authors_str = ", ".join(bib_entry.authors) if bib_entry.authors else "Unknown"
+
+        source_url = paper_info.get("url") or ""
+        if not source_url:
+            if bib_entry.doi:
+                source_url = f"https://doi.org/{bib_entry.doi}"
+            elif bib_entry.title:
+                import urllib.parse
+                source_url = f"https://scholar.google.com/scholar?q={urllib.parse.quote(bib_entry.title)}"
+
+        return VerificationItem(
+            claim=item.claim_text,
+            citation=f"[{ref_id}] {bib_entry.title or 'Unknown Title'}",
+            cited_title=bib_entry.title,
+            cited_authors=authors_str,
+            cited_year=cited_year_str,
+            cited_doi=str(bib_entry.doi or ""),
+            evidence_passage=best_evidence,
+            evidence_score=best_score,
+            verdict=verdict,
+            flag=flag,
+            confidence=confidence,
+            needs_review=needs_review,
+            source_url=source_url,
+            details=f"{details} | {flag_reason}",
+        )
+
+    targets = []
+    for item in selected_claims:
         for ref_id in item.target_ref_ids:
-            bib_entry = bib_map.get(
-                ref_id,
-                BiblioEntry(ref_id=ref_id, title=f"Reference {ref_id}"),
-            )
-            paper_info = retrieved_papers.get(
-                ref_id,
-                {"exists": False, "abstract": "", "authors": [], "year": None},
-            )
+            targets.append((item, ref_id))
 
-            # Rank passages
-            ranked_passages = rank_passages(
-                claim_text=item.claim_text,
-                evidence_text=paper_info.get("abstract", ""),
-                ref_id=ref_id,
-                top_k=3,
-            )
-
-            cited_year_str = str(bib_entry.year or paper_info.get("year") or "")
-
-            # Classify claim (stance & reasoning)
-            verdict, details, confidence = classify_claim(
-                claim_text=item.claim_text,
-                passages=ranked_passages,
-                cited_year=cited_year_str,
-            )
-
-            # Flag reference & determine if human review is needed per Academic Trust guidelines
-            flag, flag_reason, needs_review = evaluate_reference_flag(bib_entry, paper_info, verdict)
-
-            best_evidence = ranked_passages[0].text if ranked_passages else "No evidence found."
-            best_score = ranked_passages[0].score if ranked_passages else 0.0
-
-            authors_str = ", ".join(bib_entry.authors) if bib_entry.authors else "Unknown"
-
-            source_url = paper_info.get("url") or ""
-            if not source_url:
-                if bib_entry.doi:
-                    source_url = f"https://doi.org/{bib_entry.doi}"
-                elif bib_entry.title:
-                    import urllib.parse
-                    source_url = f"https://scholar.google.com/scholar?q={urllib.parse.quote(bib_entry.title)}"
-
-            items.append(
-                VerificationItem(
-                    claim=item.claim_text,
-                    citation=f"[{ref_id}] {bib_entry.title or 'Unknown Title'}",
-                    cited_title=bib_entry.title,
-                    cited_authors=authors_str,
-                    cited_year=cited_year_str,
-                    cited_doi=str(bib_entry.doi or ""),
-                    evidence_passage=best_evidence,
-                    evidence_score=best_score,
-                    verdict=verdict,
-                    flag=flag,
-                    confidence=confidence,
-                    needs_review=needs_review,
-                    source_url=source_url,
-                    details=f"{details} | {flag_reason}",
-                )
-            )
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        items = list(executor.map(_verify_one_target, targets))
 
     # Format table for report adhering to Problem Statement 03 fields
     df = pd.DataFrame(

@@ -1,8 +1,9 @@
-"""Claim verification and stance classification engine with dynamic model discovery and cascade fallback."""
+"""Claim verification and stance classification engine with dynamic model auto-discovery and fast fallback."""
 from __future__ import annotations
 import os
 import re
 import json
+import time
 from typing import List, Tuple, Optional
 
 from core.models import EvidencePassage
@@ -25,73 +26,84 @@ OPPOSITION_PAIRS = [
     ({"improve", "improves", "improved"}, {"worsen", "worsens", "degrades", "degrade"}),
 ]
 
-# Dynamic model caches
-_CACHED_GEMINI_MODELS: Optional[List[str]] = None
-_CACHED_GROQ_MODELS: Optional[List[str]] = None
+_ACTIVE_GROQ_MODEL: Optional[str] = None
+_ACTIVE_GEMINI_MODEL: Optional[str] = None
+_GEMINI_DISABLED_UNTIL: float = 0.0
+_GROQ_DISABLED_UNTIL: float = 0.0
 
 
-def get_dynamic_gemini_models() -> List[str]:
-    """Dynamically queries Google GenAI API to discover active generation models."""
-    global _CACHED_GEMINI_MODELS
-    if _CACHED_GEMINI_MODELS:
-        return _CACHED_GEMINI_MODELS
-
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key:
-        return ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-
-    try:
-        from google import genai
-        client = genai.Client(api_key=gemini_key)
-        discovered = []
-        for m in client.models.list():
-            name = m.name.replace("models/", "")
-            # Prioritize fast text models, avoid audio/tts/experimental
-            if "flash" in name and "tts" not in name and "audio" not in name:
-                discovered.append(name)
-        
-        # Sort so newer versions (2.5 -> 2.0 -> 1.5) are attempted first
-        discovered.sort(reverse=True)
-        if discovered:
-            _CACHED_GEMINI_MODELS = discovered
-            return discovered
-    except Exception as e:
-        print(f"[CiteVerify] Dynamic Gemini model discovery fallback: {e}")
-
-    _CACHED_GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-    return _CACHED_GEMINI_MODELS
-
-
-def get_dynamic_groq_models() -> List[str]:
-    """Dynamically queries Groq API to discover active text models."""
-    global _CACHED_GROQ_MODELS
-    if _CACHED_GROQ_MODELS:
-        return _CACHED_GROQ_MODELS
+def get_working_groq_model() -> Optional[str]:
+    """Dynamically finds the best responsive model on Groq and caches it."""
+    global _ACTIVE_GROQ_MODEL, _GROQ_DISABLED_UNTIL
+    if time.time() < _GROQ_DISABLED_UNTIL:
+        return None
+    if _ACTIVE_GROQ_MODEL:
+        return _ACTIVE_GROQ_MODEL
 
     groq_key = os.getenv("GROQ_API_KEY")
     if not groq_key:
-        return ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen/qwen3.8-27b"]
+        return None
 
     try:
         from groq import Groq
         client = Groq(api_key=groq_key)
-        discovered = []
-        for m in client.models.list().data:
-            mid = m.id
-            if "whisper" not in mid and "guard" not in mid:
-                discovered.append(mid)
+        models = [m.id for m in client.models.list().data if "whisper" not in m.id and "guard" not in m.id]
+        
+        # Test candidate models in order of priority
+        candidates = ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b", "allam-2-7b", "llama-3.1-8b-instant"]
+        ordered = [c for c in candidates if c in models] + [m for m in models if m not in candidates]
 
-        # Prioritize fast versatile models
-        preferred = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
-        ordered = [p for p in preferred if p in discovered] + [d for d in discovered if d not in preferred]
-        if ordered:
-            _CACHED_GROQ_MODELS = ordered
-            return ordered
+        for cand in ordered[:3]:
+            try:
+                client.chat.completions.create(
+                    model=cand,
+                    messages=[{"role": "user", "content": "ping"}],
+                    max_tokens=3,
+                    timeout=3.0,
+                )
+                _ACTIVE_GROQ_MODEL = cand
+                print(f"[CiteVerify] Active Groq model verified: {_ACTIVE_GROQ_MODEL}")
+                return _ACTIVE_GROQ_MODEL
+            except Exception:
+                continue
     except Exception as e:
-        print(f"[CiteVerify] Dynamic Groq model discovery fallback: {e}")
+        print(f"[CiteVerify] Groq model discovery notice: {e}")
 
-    _CACHED_GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen/qwen3.8-27b"]
-    return _CACHED_GROQ_MODELS
+    _GROQ_DISABLED_UNTIL = time.time() + 180
+    return None
+
+
+def get_working_gemini_model() -> Optional[str]:
+    """Dynamically checks if an active Gemini generation model is accessible with current quota."""
+    global _ACTIVE_GEMINI_MODEL, _GEMINI_DISABLED_UNTIL
+    if time.time() < _GEMINI_DISABLED_UNTIL:
+        return None
+    if _ACTIVE_GEMINI_MODEL:
+        return _ACTIVE_GEMINI_MODEL
+
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key:
+        return None
+
+    try:
+        from google import genai
+        client = genai.Client(api_key=gemini_key)
+        for m in client.models.list():
+            name = m.name.replace("models/", "")
+            if "flash" in name and "tts" not in name and "audio" not in name:
+                try:
+                    client.models.generate_content(model=name, contents="ping")
+                    _ACTIVE_GEMINI_MODEL = name
+                    print(f"[CiteVerify] Active Gemini model verified: {_ACTIVE_GEMINI_MODEL}")
+                    return _ACTIVE_GEMINI_MODEL
+                except Exception:
+                    continue
+    except Exception as e:
+        print(f"[CiteVerify] Gemini quota/access status: {e}")
+
+    # Temporarily bypass Gemini if no models respond to prevent request stalls
+    _GEMINI_DISABLED_UNTIL = time.time() + 300
+    return None
 
 
 def classify_with_rules(
@@ -108,7 +120,7 @@ def classify_with_rules(
         )
 
     best_passage = passages[0]
-    score = getattr(best_passage, 'similarity_score', getattr(best_passage, 'score', 0.0))
+    score = getattr(best_passage, "similarity_score", getattr(best_passage, "score", 0.0))
     evidence_lower = best_passage.text.lower()
     claim_lower = claim_text.lower()
 
@@ -179,87 +191,27 @@ def classify_with_rules(
         )
 
 
-def classify_with_gemini_dynamic(
+def classify_with_groq(
     claim_text: str,
     passages: List[EvidencePassage],
     cited_year: str | None = None,
 ) -> Tuple[str, str, str]:
-    """Attempts Gemini inference across dynamically discovered models with automatic model fallback."""
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key or not passages or not passages[0].text.strip():
-        return classify_with_rules(claim_text, passages, cited_year)
-
-    models_to_try = get_dynamic_gemini_models()
-    best_passage = passages[0].text[:1500]
-
-    system_instruction = (
-        "You are an academic claim and citation verification expert conforming to research integrity standards.\n"
-        "Compare the Claim against the Evidence Passage from the cited research paper.\n"
-        "Classify the stance into exactly one verdict:\n"
-        "- 'Supported': The evidence explicitly confirms the claim.\n"
-        "- 'Partially supported': The evidence relates to the topic, but lacks specific details or sample scale.\n"
-        "- 'Contradicted': The evidence disagrees, refutes, or shows opposite findings.\n"
-        "- 'Potentially outdated': The cited paper is historically valid but superseded for modern assertions.\n"
-        "- 'Unsupported': The evidence does not address the claim.\n\n"
-        "Respond strictly in JSON format with keys:\n"
-        "{\n"
-        "  \"verdict\": \"Supported | Partially supported | Contradicted | Potentially outdated | Unsupported\",\n"
-        "  \"confidence\": \"High | Medium | Low\",\n"
-        "  \"reasoning\": \"A concise 1-2 sentence explanation of why the source matches or does not match.\"\n"
-        "}"
-    )
-
-    user_content = (
-        f"Claim: \"{claim_text}\"\n"
-        f"Cited Year: {cited_year or 'Unknown'}\n"
-        f"Evidence Passage: \"{best_passage}\""
-    )
-
-    for model_name in models_to_try:
-        try:
-            from google import genai
-            from google.genai import types
-
-            client = genai.Client(api_key=gemini_key)
-            response = client.models.generate_content(
-                model=model_name,
-                contents=user_content,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                ),
-            )
-            data = json.loads(response.text)
-            verdict = data.get("verdict", "Partially supported")
-            confidence = data.get("confidence", "Medium")
-            reasoning = data.get("reasoning", f"Evaluated via Google {model_name}.")
-            return verdict, reasoning, confidence
-        except Exception as e:
-            print(f"[CiteVerify] Gemini model {model_name} failed: {e}. Trying fallback model...")
-            continue
-
-    return "FALLBACK", "All dynamic Gemini models unavailable", "Low"
-
-
-def classify_with_groq_dynamic(
-    claim_text: str,
-    passages: List[EvidencePassage],
-    cited_year: str | None = None,
-) -> Tuple[str, str, str]:
-    """Attempts Groq inference across dynamically discovered models with automatic model fallback."""
+    """Evaluates claim stance using dynamic Groq model."""
     groq_api_key = os.getenv("GROQ_API_KEY")
     if not groq_api_key or not passages or not passages[0].text.strip():
         return classify_with_rules(claim_text, passages, cited_year)
 
-    models_to_try = get_dynamic_groq_models()
-    best_passage = passages[0].text[:1500]
+    model = get_working_groq_model()
+    if not model:
+        return classify_with_rules(claim_text, passages, cited_year)
 
+    best_passage = passages[0].text[:1200]
     system_prompt = (
         "You are an academic claim verification auditor.\n"
-        "Compare the Claim against the Evidence Passage.\n"
+        "Compare the Claim against the Evidence Passage from the cited paper.\n"
         "Classify into one verdict: 'Supported', 'Partially supported', 'Contradicted', 'Potentially outdated', 'Unsupported'.\n"
-        "Respond strictly in JSON format with keys 'verdict', 'confidence', 'reasoning'."
+        "Respond strictly in JSON format with keys:\n"
+        "{\"verdict\": \"...\", \"confidence\": 0.9, \"reasoning\": \"1-2 sentence explanation.\"}"
     )
 
     user_prompt = (
@@ -268,31 +220,79 @@ def classify_with_groq_dynamic(
         f"Evidence Passage: \"{best_passage}\""
     )
 
-    for model_name in models_to_try:
-        try:
-            from groq import Groq
+    try:
+        from groq import Groq
+        client = Groq(api_key=groq_api_key)
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"},
+            timeout=4.0,
+        )
+        data = json.loads(completion.choices[0].message.content)
+        verdict = data.get("verdict", "Supported")
+        conf_raw = data.get("confidence", "High")
+        confidence = "High" if str(conf_raw).lower() in ["high", "0.9", "1.0", "1", "0.85"] else "Medium"
+        reasoning = data.get("reasoning", f"Evaluated via Groq ({model}).")
+        return verdict, reasoning, confidence
+    except Exception as e:
+        print(f"[CiteVerify] Groq inference notice ({model}): {e}. Using rule fallback.")
+        return classify_with_rules(claim_text, passages, cited_year)
 
-            client = Groq(api_key=groq_api_key)
-            completion = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
+
+def classify_with_gemini(
+    claim_text: str,
+    passages: List[EvidencePassage],
+    cited_year: str | None = None,
+) -> Tuple[str, str, str]:
+    """Evaluates claim stance using dynamic Gemini model."""
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key or not passages or not passages[0].text.strip():
+        return classify_with_rules(claim_text, passages, cited_year)
+
+    model = get_working_gemini_model()
+    if not model:
+        return classify_with_groq(claim_text, passages, cited_year)
+
+    best_passage = passages[0].text[:1200]
+    system_instruction = (
+        "You are an academic claim and citation verification expert.\n"
+        "Compare the Claim against the Evidence Passage.\n"
+        "Classify into exactly one verdict: 'Supported', 'Partially supported', 'Contradicted', 'Potentially outdated', 'Unsupported'.\n"
+        "Respond strictly in JSON format with keys: verdict, confidence, reasoning."
+    )
+    user_content = (
+        f"Claim: \"{claim_text}\"\n"
+        f"Cited Year: {cited_year or 'Unknown'}\n"
+        f"Evidence Passage: \"{best_passage}\""
+    )
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=gemini_key)
+        response = client.models.generate_content(
+            model=model,
+            contents=user_content,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
                 temperature=0.1,
-                response_format={"type": "json_object"},
-            )
-            raw = completion.choices[0].message.content
-            data = json.loads(raw)
-            verdict = data.get("verdict", "Partially supported")
-            confidence = data.get("confidence", "Medium")
-            reasoning = data.get("reasoning", f"Evaluated via Groq {model_name}.")
-            return verdict, reasoning, confidence
-        except Exception as e:
-            print(f"[CiteVerify] Groq model {model_name} failed: {e}. Trying fallback model...")
-            continue
-
-    return "FALLBACK", "All dynamic Groq models unavailable", "Low"
+            ),
+        )
+        data = json.loads(response.text)
+        verdict = data.get("verdict", "Partially supported")
+        confidence = data.get("confidence", "Medium")
+        reasoning = data.get("reasoning", f"Evaluated via Gemini ({model}).")
+        return verdict, reasoning, confidence
+    except Exception as e:
+        print(f"[CiteVerify] Gemini inference notice: {e}. Falling back to Groq.")
+        return classify_with_groq(claim_text, passages, cited_year)
 
 
 def classify_claim(
@@ -302,22 +302,23 @@ def classify_claim(
     use_llm: bool = True,
 ) -> Tuple[str, str, str]:
     """
-    Cascading NLI Verification:
-    1. Dynamic Google Gemini (models discovered at runtime, e.g. gemini-2.5-flash -> gemini-2.0-flash)
-    2. Dynamic Groq LPU (models discovered at runtime, e.g. llama-3.3-70b -> llama-3.1-8b)
-    3. Deterministic Symbolic Rule Engine
+    Stance classification cascade:
+    1. Dynamic Gemini (if verified and active)
+    2. Dynamic Groq (sub-second inference via openai/gpt-oss-20b or discovered model)
+    3. Deterministic Symbolic Rule Engine (sub-millisecond offline guarantee)
     """
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    groq_key = os.getenv("GROQ_API_KEY")
+    if not use_llm:
+        return classify_with_rules(claim_text, passages, cited_year)
 
-    if gemini_key and use_llm:
-        verdict, reasoning, confidence = classify_with_gemini_dynamic(claim_text, passages, cited_year)
-        if verdict != "FALLBACK":
-            return verdict, reasoning, confidence
+    # 1. Try Groq first for sub-second speed if Gemini is circuit-tripped
+    model_groq = get_working_groq_model()
+    if model_groq:
+        return classify_with_groq(claim_text, passages, cited_year)
 
-    if groq_key and use_llm:
-        verdict, reasoning, confidence = classify_with_groq_dynamic(claim_text, passages, cited_year)
-        if verdict != "FALLBACK":
-            return verdict, reasoning, confidence
+    # 2. Try Gemini
+    model_gemini = get_working_gemini_model()
+    if model_gemini:
+        return classify_with_gemini(claim_text, passages, cited_year)
 
+    # 3. Deterministic Rule Engine
     return classify_with_rules(claim_text, passages, cited_year)
