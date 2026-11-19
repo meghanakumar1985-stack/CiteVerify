@@ -117,7 +117,24 @@ async def verify_pdf(
         pdf_bytes = await file.read()
         stub_mode = False
 
-    df, diagnostics = run_pipeline(pdf_bytes, use_stub=stub_mode)
+    try:
+        df, diagnostics = run_pipeline(pdf_bytes, use_stub=stub_mode)
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": str(e),
+                "total_claims": 0,
+                "supported_count": 0,
+                "partial_count": 0,
+                "contradicted_count": 0,
+                "outdated_count": 0,
+                "needs_review_count": 0,
+                "results": [],
+                "diagnostics": {"status": "error", "error": str(e)},
+            },
+        )
     records = df.to_dict(orient="records")
 
     supported = sum(1 for r in records if "supported" in str(r.get("Verdict", "")).lower() and "partially" not in str(r.get("Verdict", "")).lower())

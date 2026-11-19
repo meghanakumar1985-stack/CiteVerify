@@ -183,7 +183,8 @@
       }
 
       if (!response.ok) {
-        throw new Error(`Server returned status ${response.status}`);
+        const errPayload = await response.json().catch(() => ({}));
+        throw new Error(errPayload.error || `Server returned status ${response.status}`);
       }
 
       const payload = await response.json();

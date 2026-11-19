@@ -80,15 +80,30 @@ BENCHMARK_CLAIMS: List[CitationClaim] = [
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extracts raw plain text from PDF bytes via PyMuPDF."""
+    """Extracts raw plain text from PDF bytes via PyMuPDF with security validation."""
     try:
         doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
-        text_parts: List[str] = []
+    except Exception as e:
+        raise ValueError(f"Unable to read PDF file format: {e}")
+
+    if doc.is_encrypted and doc.needs_pass:
+        if not doc.authenticate(""):
+            raise ValueError("The uploaded PDF is password-protected or encrypted. Please upload an unlocked research PDF.")
+
+    text_parts: List[str] = []
+    try:
         for page in doc:
             text_parts.append(page.get_text())
-        return "\n".join(text_parts)
-    except Exception:
-        return ""
+    except Exception as e:
+        if "encrypted" in str(e).lower() or "password" in str(e).lower():
+            raise ValueError("The uploaded PDF is password-protected or encrypted. Please upload an unlocked research PDF.")
+        raise ValueError(f"Error parsing PDF page text: {e}")
+
+    extracted = "\n".join(text_parts).strip()
+    if not extracted:
+        raise ValueError("The uploaded PDF contains no extractable digital text (scanned image or rasterized canvas). Please upload a digital text research paper.")
+
+    return extracted
 
 
 def parse_bibliography_from_text(text: str) -> Dict[str, BiblioEntry]:
