@@ -59,7 +59,7 @@ Segments retrieved source text into context-preserving sliding passages and comp
 
 ### 3.5 Dual-Engine Stance Classification Cascade
 - **Primary: Google Gemini 2.0 Flash**: Structured semantic reasoning via the official Google GenAI SDK.
-- **Fallback: Groq LPU (`llama-3.1-8b-instant`)**: High-throughput inference fallback when primary limits or latency occurs.
+- **Fallback: Groq LPU (`openai/gpt-oss-20b` / `qwen/qwen3.8-27b`)**: High-throughput inference fallback when primary limits or latency occurs.
 - **Symbolic Fallback Engine**: Deterministic polarity conflict analysis, numeric discrepancy detection, and temporal drift thresholds (flags claims referencing outdated literature > 8–15 years old for modern assertions).
 
 ### 3.6 Reference Integrity Audit
